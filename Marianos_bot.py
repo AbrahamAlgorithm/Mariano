@@ -15,6 +15,7 @@ from selenium.common.exceptions import (
 import os
 import time
 import asyncio
+import json
 
 
 async def setup_driver(user_agent=None):
@@ -130,12 +131,45 @@ async def select_store(driver, zip_code):
             EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
         )
         store.click()
-        await asyncio.sleep(100)
+        await asyncio.sleep(10)
         print("Clicked on the selected store.")
 
         print("Selected store successfully!")
+        print("Navigating to the Sale Items section...")
+
+        # Wait for the 'Sale Items' button to load and scroll into view
+        sale_items_button = WebDriverWait(driver, 60).until(
+            EC.element_to_be_clickable((By.ID, "Tabs-tab-m3pylsj5-1"))
+        )
+        sale_items_button.click()
+        print("Clicked 'Sale Items' button.")
+        await asyncio.sleep(5)  # Wait for the page to load
+
+        # Wait for the 'Shop All' link and click it
+        shop_all_link = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.kds-Link[href="/products/my-sale-items"]'))
+        )
+        shop_all_link.click()
+        print("Clicked 'Shop All' link to navigate to the product page.")
+        await asyncio.sleep(70)  # Wait for the product page to load
+
+        # Now we're on the product page. From here, you can implement further scraping.
+        print("Successfully navigated to the product page. Ready for scraping!")
+        
+        
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+
+async def scrape_products(driver):
+    try:
+       await asyncio.sleep(100)
+
+    except TimeoutException:
+        print("Timed out while trying to navigate to the Sale Items section.")
+    except Exception as e:
+        print(f"An error occurred during navigation: {e}")
 
 
 
@@ -156,6 +190,7 @@ async def main():
         await clear_cookies(driver)
         # await refresh_page(driver)
         await select_store(driver, zip_code="60610")
+        await scrape_products(driver)
     finally:
         print("Closing the browser...")
         driver.quit()
