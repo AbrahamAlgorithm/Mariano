@@ -150,64 +150,34 @@ async def select_store(driver, zip_code):
         print("Selected store successfully!")
     except Exception as e:
         print(f"An error occurred: {e}")
-
-
-async def _products(driver):
-    try:
-        await asyncio.sleep(10)  # Wait for the page to load
-        print("Navigating to the Sale Items section...")
-        link_element = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words'))
-        )
-        # driver.execute_script("arguments[0].scrollIntoView(true);", link_element)
-        await asyncio.sleep(5)
-        link_element.click()
-        print("Clicked on 'Keep Shopping' link.")
-
-        # Wait for the next page to load
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words[href="/products/start-my-cart"]'))
-        )
-
-        # Click on the "Shop All" link
-        shop_all_element = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words[href="/products/start-my-cart"]'))
-        )
-        shop_all_element.click()
-        print("Clicked on 'Shop All' link.")
-        await asyncio.sleep(10)  # Wait for the product page to load
-
-        # Now we're on the product page. From here, you can implement further scraping.
-        print("Successfully navigated to the product page. Ready for scraping!")
-        # save_page_source(driver, file_name="product_page.json")
         
         
-        await asyncio.sleep(10)
-
-    except TimeoutException:
-        print("Timed out while trying to navigate to the Sale Items section.")
-    except Exception as e:
-        print(f"An error occurred during navigation: {e}")
-
-
-async def get_product_links(driver):
+async def search_products(driver, search_query):
     try:
-        # Find all the product grid containers
-        product_grid_containers = driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="auto-grid-cell"]')
-
-        # Extract the links from each product grid container
-        product_links = []
-        for container in product_grid_containers:
-            link_element = container.find_element(By.CSS_SELECTOR, 'a')
-            product_links.append(link_element.get_attribute('href'))
-
-        print(f"Found {len(product_links)} product links.")
-        print(product_links)
-        await asyncio.sleep(20)
-        return product_links
+        print("Now on the home page, about to start searching for products...")
+        
+        click_search_box = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.ID, "SearchBar-input"))
+        )
+        click_search_box.click()
+        print("Clicked on the search box.")
+        
+        search_box = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.ID, "SearchBar-input-open"))
+        )
+        search_box.clear()
+        await type_like_human(search_box, search_query)
+        print(f"Typed the search query: {search_query}")
+        
+        search_box.submit()
+        
+        await asyncio.sleep(50)
+        
     except Exception as e:
-        print(f"Error getting product links: {e}")
-        return []
+        print(f"An error occurred: {e}")
+
+
+
 
 
 async def main():
@@ -226,8 +196,7 @@ async def main():
         await visit_website(driver, url)
         await clear_cookies(driver)
         await select_store(driver, zip_code="60610")
-        await _products(driver)
-        await get_product_links(driver)
+        await search_products(driver, search_query="crackers")
     finally:
         print("Closing the browser...")
         driver.quit()

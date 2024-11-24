@@ -52,6 +52,9 @@ async def save_to_csv(data):
 
 
 
+
+
+
     
     
 def save_links_to_csv(product_links, filename="product_links.csv"):
@@ -80,3 +83,175 @@ async def fetch_product_details(session, url):
     except Exception as e:
         print(f"Error visiting {url}: {e}")
         return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async def select_store(driver, zip_code):
+    try:
+        print("Selecting a store...")
+
+        # Wait for the location input button and click it
+        location_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+        )
+        location_button.click()
+        await asyncio.sleep(10)
+        print("Clicked on the location button.")
+
+        cancel_icon = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.ID, "ModalitySelector--CloseButton"))
+        )
+        cancel_icon.click()
+        print("Clicked on the cancel icon.")
+        await asyncio.sleep(5)
+        
+        location_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+        )
+        location_button.click()
+        print("Clicking on the location button again.")
+        await asyncio.sleep(10)
+        print("Clicked on the location button.")
+
+        # Wait for the change store button and click it
+        
+        change_store_button = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="ModalityOption-Button-IN_STORE"]'))
+        )
+        change_store_button.click()
+        print("Clicked on the change store button.")
+
+        # Wait for the zip search input
+        zip_search_input = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="PostalCodeSearchBox-input"]'))
+        )
+        zip_search_input.clear()
+
+        # Type the zip code asynchronously with a delay to mimic human typing
+        await type_like_human(zip_search_input, zip_code)
+        print(f"Typed the zip code: {zip_code}")
+
+        # Click the search icon
+        search_icon = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Search"]'))
+        )
+        search_icon.click()
+        print("Clicked on the search icon.")
+
+        # Wait for the specific store in the search results and click it
+        store = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
+        )
+        store.click()
+        print("Clicked on the selected store.")
+
+        print("Selected store successfully!")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async def _products(driver):
+    try:
+        await asyncio.sleep(10)  # Wait for the page to load
+        print("Navigating to the Sale Items section...")
+        link_element = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words'))
+        )
+        # driver.execute_script("arguments[0].scrollIntoView(true);", link_element)
+        await asyncio.sleep(5)
+        link_element.click()
+        print("Clicked on 'Keep Shopping' link.")
+
+        # Wait for the next page to load
+        WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words[href="/products/start-my-cart"]'))
+        )
+
+        # Click on the "Shop All" link
+        shop_all_element = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.kds-Link.kds-Link--implied.kds-ProminentLink.kds-ProminentLink--l.headerSection-link.break-words[href="/products/start-my-cart"]'))
+        )
+        shop_all_element.click()
+        print("Clicked on 'Shop All' link.")
+        await asyncio.sleep(10)  # Wait for the product page to load
+
+        # Now we're on the product page. From here, you can implement further scraping.
+        print("Successfully navigated to the product page. Ready for scraping!")
+        # save_page_source(driver, file_name="product_page.json")
+        
+        
+        await asyncio.sleep(10)
+
+    except TimeoutException:
+        print("Timed out while trying to navigate to the Sale Items section.")
+    except Exception as e:
+        print(f"An error occurred during navigation: {e}")
+
+
+async def get_product_links(driver):
+    try:
+        # Find all the product grid containers
+        product_grid_containers = driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="auto-grid-cell"]')
+
+        # Extract the links from each product grid container
+        product_links = []
+        for container in product_grid_containers:
+            link_element = container.find_element(By.CSS_SELECTOR, 'a')
+            product_links.append(link_element.get_attribute('href'))
+
+        print(f"Found {len(product_links)} product links.")
+        print(product_links)
+        await asyncio.sleep(20)
+        return product_links
+    except Exception as e:
+        print(f"Error getting product links: {e}")
+        return []
