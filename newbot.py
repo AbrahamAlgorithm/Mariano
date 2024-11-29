@@ -10,7 +10,8 @@ from selenium.common.exceptions import (
     TimeoutException,
     StaleElementReferenceException,
     NoSuchElementException,
-    WebDriverException
+    WebDriverException,
+    ElementClickInterceptedException
 )
 import os
 import time
@@ -159,7 +160,7 @@ async def get_product_links(driver):
 
         print(f"Found {len(product_links)} product links.")
         print(product_links)
-        await asyncio.sleep(20)
+        await asyncio.sleep(10)
         return product_links
     except Exception as e:
         print(f"Error getting product links: {e}")
@@ -208,7 +209,7 @@ async def visit_links_and_scrape(driver, csv_file="product_details.csv", links_f
         # Create the CSV file and write the header
         with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            writer.writerow(["Product Name", "Unit", "UPC", "Location", "Price"])
+            writer.writerow(["Product Name", "UPC", "Location", "Price"])
 
         # Read links from the CSV file
         with open(links_file, mode="r") as file:
