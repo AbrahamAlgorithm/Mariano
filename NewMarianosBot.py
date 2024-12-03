@@ -21,82 +21,25 @@ import json
 import pandas as pd
 import undetected_chromedriver as uc
 
-# Expanded list of user agents
-USER_AGENTS = [
-    # Windows Chrome
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36",
-]
-
-
-PROXIES = [
-    # Format: IP:PORT:USERNAME:PASSWORD (if authentication is required)
-    "203.30.189.46:80",
-    "51.158.172.165:8811",
-    "51.79.50.46:9300",
-    "198.50.163.192:3129",
-    "47.254.90.125:8080",
-    "185.61.152.137:8080",
-    # Add more proxies here
-]
-
-async def setup_driver(user_agent=None, proxy=None):
+async def setup_driver(user_agent=None):
     try:
         options = uc.ChromeOptions()
-        
-        # Add user agent if provided
-        if user_agent:
-            options.add_argument(f'--user-agent={user_agent}')
-        
-        # Add proxy if provided
-        if proxy:
-            # Check if proxy includes authentication
-            if ':' in proxy and proxy.count(':') >= 3:
-                ip, port, username, password = proxy.split(':')
-                options.add_argument(f'--proxy-server={ip}:{port}')
-                
-                # Optional: Add proxy authentication for Chrome
-                # Note: This method might not work with all proxies
-                options.add_argument(f'--proxy-auth={username}:{password}')
-            else:
-                # Simple IP:PORT proxy
-                options.add_argument(f'--proxy-server={proxy}')
-        
-        # Additional Chrome options for stealth and performance
         options.add_argument("--disable-notifications")
         options.add_argument("--start-maximized")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--incognito")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
+
+        if user_agent:
+            options.add_argument(f'--user-agent={user_agent}')
 
         driver = uc.Chrome(options=options)
-        
-        # Additional stealth techniques
-        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": """
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-            """
-        })
-        
         print("Undetectable WebDriver setup successful")
         return driver
     except WebDriverException as e:
         print(f"Error setting up undetectable WebDriver: {e}")
         return None
-
-async def choose_random_configuration():
-    """
-    Randomly select a user agent and proxy for each scraping session
-    """
-    user_agent = random.choice(USER_AGENTS)
-    proxy = random.choice(PROXIES) if PROXIES else None
-    return user_agent, proxy
 
 async def visit_website(driver, url, max_retries=3):
     retries = 0
@@ -104,10 +47,6 @@ async def visit_website(driver, url, max_retries=3):
         try:
             print(f"Visiting {url}... (Attempt {retries + 1})")
             driver.get(url)
-            
-            # Check for and handle pop-up immediately after loading the page
-            await handle_popup(driver)
-            
             await asyncio.sleep(10)
             print(f"Successfully loaded {url}")
             return
@@ -185,42 +124,6 @@ async def select_store(driver, zip_code):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
-async def handle_popup(driver, timeout=10):
-    try:
-        # Wait for the pop-up dialog to be present
-        popup = WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((
-                By.CLASS_NAME, 
-                "QSIWebResponsiveDialog-Layout1-SI_9yJLD8psVL8MwL4_content"
-            ))
-        )
-        
-        # Find and click the "No, thanks" button
-        no_thanks_button = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((
-                By.XPATH, 
-                "//button[contains(@class, 'QSIWebResponsiveDialog-Layout1-SI_9yJLD8psVL8MwL4_button-2') and text()='No, thanks']"
-            ))
-        )
-        
-        # Click the "No, thanks" button
-        no_thanks_button.click()
-        print("Pop-up dialog dismissed successfully.")
-        
-        # Wait a short moment to ensure the pop-up is fully closed
-        await asyncio.sleep(1)
-        
-        return True
-    
-    except TimeoutException:
-        # No pop-up found within the timeout period
-        return False
-    except Exception as e:
-        print(f"Error handling pop-up: {e}")
-        return False
-
-
 async def get_product_links(driver, max_retries=3):
     try:
         retries = 0
@@ -270,9 +173,6 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
         try:
             print(f"Attempt {attempt + 1} to click 'Load More' button...")
 
-            # Check for and handle any pop-ups before interacting
-            await handle_popup(driver)
-            
             # Wait for the button to be clickable
             load_more_button = WebDriverWait(driver, 15).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, 'button.LoadMore__load-more-button'))
@@ -284,7 +184,6 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
 
             # Short pause to ensure UI stability
             await asyncio.sleep(random.uniform(1.5, 3.5))
-            await handle_popup(driver)
 
             # Click the button
             load_more_button.click()
@@ -292,7 +191,6 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
 
             # Wait for the content to load
             await asyncio.sleep(random.uniform(5, 10))
-            await handle_popup(driver)
 
             # Confirm new content is loaded (customize the condition as needed)
             WebDriverWait(driver, 10).until(
@@ -450,13 +348,9 @@ def save_to_excel(data, filename="product_details.xlsx"):
 
 async def main():
     url = "https://www.marianos.com/search?"
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
     
-    # Choose random configuration for this run
-    user_agent, proxy = await choose_random_configuration()
-    print(f"Using User Agent: {user_agent}")
-    print(f"Using Proxy: {proxy or 'No proxy'}")
-    
-    driver = await setup_driver(user_agent, proxy)
+    driver = await setup_driver(user_agent)
     if not driver:
         print("Failed to setup undetectable WebDriver...Exiting.")
         return
@@ -466,24 +360,7 @@ async def main():
         await clear_cookies(driver)
         await select_store(driver, "60601")
         
-        iteration = 0
-        max_iterations = 10  # Limit total number of 'Load More' clicks to prevent indefinite scraping
-        
-        while iteration < max_iterations:
-            # Occasionally switch user agent and proxy to reduce detection risk
-            if iteration % 3 == 0 and iteration > 0:
-                print("Rotating user agent and proxy...")
-                user_agent, proxy = await choose_random_configuration()
-                
-                # Restart the driver with new configuration
-                driver.quit()
-                driver = await setup_driver(user_agent, proxy)
-                
-                # Revisit the website with new configuration
-                await visit_website(driver, url, max_retries=3)
-                await clear_cookies(driver)
-                await select_store(driver, "60601")
-            
+        while True:
             product_links = await get_product_links(driver, max_retries=3)
             
             if product_links:
@@ -493,20 +370,13 @@ async def main():
                 print("No more products to load. Scraping completed.")
                 break
             
-            iteration += 1
-            await asyncio.sleep(random.uniform(5, 10))  # Random delay between iterations
+            await asyncio.sleep(5)
             
-    except Exception as e:
-        print(f"An error occurred during scraping: {e}")
-    
     finally:
         # Save all collected data to Excel file
-        if product_data:
-            save_to_excel(product_data)
-        
+        save_to_excel(product_data)
         print("Closing the browser...")
         driver.quit()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

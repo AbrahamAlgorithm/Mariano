@@ -71,6 +71,7 @@ async def clear_cookies(driver):
 async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor=2):
     for attempt in range(max_retries + 1):
         try:
+            await asyncio.sleep(20)
             print(f"Attempt {attempt + 1} to click 'Load More' button...")
 
             # Wait for the 'Load More' button to be clickable
@@ -117,6 +118,7 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
                     return False
             else:
                 print("No error detected. New content is available.")
+                await asyncio.sleep(50)
                 return True  # Successfully loaded new content
 
         except (TimeoutException, ElementClickInterceptedException, NoSuchElementException) as e:
