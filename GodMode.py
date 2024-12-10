@@ -32,13 +32,15 @@ class MarianosScraper:
         user_agent: Optional[str] = None,
         headless: bool = False,
         timeout: int = 30,
-        max_page_loads: int = 50
+        max_page_loads: int = 50,
+        zip_code: Optional[str] = None
     ):
         self.base_url = base_url
         self.user_agent = user_agent or self._generate_user_agent()
         self.headless = headless
         self.timeout = timeout
         self.max_page_loads = max_page_loads
+        self.zip_code = zip_code
         self.driver: Optional[Chrome] = None
         self.product_links: List[str] = []
         self.unique_product_links: set = set()
@@ -68,6 +70,83 @@ class MarianosScraper:
         
         return options
 
+    async def type_like_human(self, element, text: str, delay: float = 0.2):
+        """Simulate human-like typing."""
+        for char in text:
+            element.send_keys(char)
+            await asyncio.sleep(delay)
+
+    async def select_store(self) -> bool:
+        """Select a store based on the provided zip code."""
+        if not self.zip_code:
+            logger.warning("No zip code provided for store selection")
+            return False
+
+        try:
+            logger.info("Starting store selection process...")
+
+            # First, click on location button
+            location_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+            )
+            location_button.click()
+            await asyncio.sleep(random.uniform(5, 10))
+
+            # Try to handle any initial popups or overlays
+            try:
+                cancel_icon = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, "ModalitySelector--CloseButton"))
+                )
+                cancel_icon.click()
+                await asyncio.sleep(random.uniform(2, 5))
+            except Exception:
+                logger.info("No cancel icon found or could not click it")
+
+            # Reopen location button if needed
+            location_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+            )
+            location_button.click()
+            await asyncio.sleep(random.uniform(5, 10))
+
+            # Change to pickup mode
+            change_store_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="ModalityOption-Button-PICKUP"]'))
+            )
+            change_store_button.click()
+            logger.info("Clicked on the change store button")
+
+            # Find and input zip code
+            zip_search_input = WebDriverWait(self.driver, self.timeout).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="PostalCodeSearchBox-input"]'))
+            )
+            zip_search_input.clear()
+            
+            await self.type_like_human(zip_search_input, self.zip_code)
+            logger.info(f"Typed the zip code: {self.zip_code}")
+
+            # Click search icon
+            search_icon = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Search"]'))
+            )
+            search_icon.click()
+            logger.info("Clicked on the search icon")
+
+            # Select a specific store (replace with the appropriate selector for your target store)
+            store = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
+            )
+            store.click()
+            logger.info("Selected store successfully!")
+
+            # Wait for store selection to complete
+            await asyncio.sleep(random.uniform(5, 10))
+            return True
+
+        except Exception as e:
+            logger.error(f"An error occurred during store selection: {e}")
+            return False
+
     async def setup_driver(self) -> Optional[Chrome]:
         try:
             options = self._setup_driver_options()
@@ -87,8 +166,7 @@ class MarianosScraper:
             try:
                 logger.info(f"Visiting {url}... (Attempt {attempt + 1})")
                 self.driver.get(url)
-                
-                # Wait for page to load
+
                 WebDriverWait(self.driver, self.timeout).until(
                     lambda d: d.execute_script("return document.readyState") == "complete"
                 )
@@ -111,14 +189,12 @@ class MarianosScraper:
             product_containers = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[data-testid="auto-grid-cell"]'))
             )
-            
-            # Extract product links
+
             new_links = [
                 container.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
                 for container in product_containers
             ]
-            
-            # Filter out duplicates
+
             unique_new_links = [
                 link for link in new_links 
                 if link not in self.unique_product_links
@@ -165,10 +241,19 @@ class MarianosScraper:
             driver = await self.setup_driver()
             if not driver:
                 return []
+            
             url = f"{self.base_url}{f'q={search_term}' if search_term else ''}"
 
             if not await self.visit_website(url):
                 return []
+            
+            # Select store if zip code is provided
+            if self.zip_code:
+                store_selected = await self.select_store()
+                if not store_selected:
+                    logger.error("Failed to select store")
+                    return []
+
             self.extract_product_links()
             page_loads = 0
             while page_loads < self.max_page_loads:
@@ -193,7 +278,7 @@ class MarianosScraper:
                 logger.info("Driver closed")
 
 async def main():
-    scraper = MarianosScraper(max_page_loads=50)
+    scraper = MarianosScraper(max_page_loads=50, zip_code="60610")  # Example zip code
     
     try:
         product_links = await scraper.scrape(search_term="bread")
