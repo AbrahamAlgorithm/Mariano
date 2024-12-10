@@ -70,6 +70,43 @@ class MarianosScraper:
         
         return options
 
+    async def dismiss_qualtrics_popup(self) -> bool:
+        """
+        Handle Qualtrics survey popup by clicking 'No, thanks' button.
+        
+        Returns:
+            bool: True if popup was successfully dismissed, False otherwise
+        """
+        try:
+            # Wait for the Qualtrics popup with a short timeout
+            popup = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'We want to hear from you!')]"))
+            )
+            
+            # Find and click the 'No, thanks' button
+            no_thanks_button = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'No, thanks')]"))
+            )
+            
+            # Use JavaScript to click to avoid any overlay issues
+            self.driver.execute_script("arguments[0].click();", no_thanks_button)
+            
+            logger.info("Qualtrics popup successfully dismissed")
+            
+            # Add a small delay after dismissing
+            await asyncio.sleep(random.uniform(1, 3))
+            
+            return True
+        
+        except (TimeoutException, NoSuchElementException):
+            # If no popup is found, it's not an error - just return False
+            logger.info("No Qualtrics popup found")
+            return False
+        
+        except Exception as e:
+            logger.warning(f"Error handling Qualtrics popup: {e}")
+            return False
+
     async def type_like_human(self, element, text: str, delay: float = 0.2):
         """Simulate human-like typing."""
         for char in text:
@@ -236,16 +273,20 @@ class MarianosScraper:
             logger.warning(f"Error clicking 'Load More' button: {e}")
             return False
 
-    async def scrape(self, search_term: Optional[str] = None) -> List[str]:
+    async def scrape(self) -> List[str]:
         try:
             driver = await self.setup_driver()
             if not driver:
                 return []
             
-            url = f"{self.base_url}{f'q={search_term}' if search_term else ''}"
+            url = self.base_url
+            # url = f"{self.base_url}{f'q={search_term}' if search_term else ''}"
 
             if not await self.visit_website(url):
                 return []
+            
+            # Immediately try to dismiss any popup that might appear
+            await self.dismiss_qualtrics_popup()
             
             # Select store if zip code is provided
             if self.zip_code:
@@ -257,8 +298,15 @@ class MarianosScraper:
             self.extract_product_links()
             page_loads = 0
             while page_loads < self.max_page_loads:
+                # Try to dismiss popup before each "Load More"
+                await self.dismiss_qualtrics_popup()
+                
                 if not await self.click_load_more():
                     break
+                
+                # Try to dismiss popup after "Load More"
+                await self.dismiss_qualtrics_popup()
+                
                 new_links = self.extract_product_links()
 
                 if not new_links:
@@ -281,7 +329,7 @@ async def main():
     scraper = MarianosScraper(max_page_loads=1000, zip_code="60610")  # Example zip code
     
     try:
-        product_links = await scraper.scrape(search_term="bread")
+        product_links = await scraper.scrape()
         
         if product_links:
             pd.DataFrame(product_links, columns=['Product URL']).to_csv('mariano_product_links.csv', index=False)
