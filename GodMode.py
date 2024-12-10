@@ -41,6 +41,7 @@ async def setup_driver(user_agent=None, proxy=None):
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--incognito")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument("--enable-unsafe-swiftshader")
 
         if user_agent:
             options.add_argument(f"user-agent={user_agent}")
@@ -155,6 +156,7 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
             print("New content loaded successfully.")
+            await asyncio.sleep(30)
             return True
 
         except (TimeoutException, ElementClickInterceptedException, NoSuchElementException) as e:
