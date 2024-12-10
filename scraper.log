@@ -1,0 +1,98 @@
+2024-12-09 17:54:46,145 - INFO: patching driver executable /Users/AbrahamAlgorithm/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2024-12-09 17:54:48,176 - ERROR: Error setting up undetectable WebDriver: Message: invalid argument: cannot parse capability: goog:chromeOptions
+from invalid argument: unrecognized chrome option: excludeSwitches
+Stacktrace:
+0   undetected_chromedriver             0x0000000103fd2e82 undetected_chromedriver + 6696578
+1   undetected_chromedriver             0x0000000103fcac9a undetected_chromedriver + 6663322
+2   undetected_chromedriver             0x00000001039d2e3e undetected_chromedriver + 405054
+3   undetected_chromedriver             0x00000001039fe836 undetected_chromedriver + 583734
+4   undetected_chromedriver             0x00000001039ffcc5 undetected_chromedriver + 588997
+5   undetected_chromedriver             0x00000001039fb09b undetected_chromedriver + 569499
+6   undetected_chromedriver             0x0000000103a531bf undetected_chromedriver + 930239
+7   undetected_chromedriver             0x0000000103a529e8 undetected_chromedriver + 928232
+8   undetected_chromedriver             0x0000000103a5470f undetected_chromedriver + 935695
+9   undetected_chromedriver             0x0000000103a545e6 undetected_chromedriver + 935398
+10  undetected_chromedriver             0x0000000103a48613 undetected_chromedriver + 886291
+11  undetected_chromedriver             0x0000000103a15950 undetected_chromedriver + 678224
+12  undetected_chromedriver             0x0000000103a1634e undetected_chromedriver + 680782
+13  undetected_chromedriver             0x0000000103fa0770 undetected_chromedriver + 6489968
+14  undetected_chromedriver             0x0000000103fa3219 undetected_chromedriver + 6500889
+15  undetected_chromedriver             0x0000000103fa2d3b undetected_chromedriver + 6499643
+16  undetected_chromedriver             0x0000000103fa36a5 undetected_chromedriver + 6502053
+17  undetected_chromedriver             0x0000000103f8b524 undetected_chromedriver + 6403364
+18  undetected_chromedriver             0x0000000103fa398f undetected_chromedriver + 6502799
+19  undetected_chromedriver             0x0000000103f7c954 undetected_chromedriver + 6342996
+20  undetected_chromedriver             0x0000000103fbb378 undetected_chromedriver + 6599544
+21  undetected_chromedriver             0x0000000103fbb535 undetected_chromedriver + 6599989
+22  undetected_chromedriver             0x0000000103fca868 undetected_chromedriver + 6662248
+23  libsystem_pthread.dylib             0x00007ff815dc61d3 _pthread_start + 125
+24  libsystem_pthread.dylib             0x00007ff815dc1bd3 thread_start + 15
+
+2024-12-09 17:54:48,177 - ERROR: Failed to setup WebDriver
+2024-12-09 18:17:22,063 - INFO: patching driver executable /Users/AbrahamAlgorithm/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+2024-12-09 18:17:23,320 - ERROR: Error setting up undetectable WebDriver: Message: invalid argument: cannot parse capability: goog:chromeOptions
+from invalid argument: unrecognized chrome option: excludeSwitches
+Stacktrace:
+0   undetected_chromedriver             0x000000010acb7e82 undetected_chromedriver + 6696578
+1   undetected_chromedriver             0x000000010acafc9a undetected_chromedriver + 6663322
+2   undetected_chromedriver             0x000000010a6b7e3e undetected_chromedriver + 405054
+3   undetected_chromedriver             0x000000010a6e3836 undetected_chromedriver + 583734
+4   undetected_chromedriver             0x000000010a6e4cc5 undetected_chromedriver + 588997
+5   undetected_chromedriver             0x000000010a6e009b undetected_chromedriver + 569499
+6   undetected_chromedriver             0x000000010a7381bf undetected_chromedriver + 930239
+7   undetected_chromedriver             0x000000010a7379e8 undetected_chromedriver + 928232
+8   undetected_chromedriver             0x000000010a73970f undetected_chromedriver + 935695
+9   undetected_chromedriver             0x000000010a7395e6 undetected_chromedriver + 935398
+10  undetected_chromedriver             0x000000010a72d613 undetected_chromedriver + 886291
+11  undetected_chromedriver             0x000000010a6fa950 undetected_chromedriver + 678224
+12  undetected_chromedriver             0x000000010a6fb34e undetected_chromedriver + 680782
+13  undetected_chromedriver             0x000000010ac85770 undetected_chromedriver + 6489968
+14  undetected_chromedriver             0x000000010ac88219 undetected_chromedriver + 6500889
+15  undetected_chromedriver             0x000000010ac87d3b undetected_chromedriver + 6499643
+16  undetected_chromedriver             0x000000010ac886a5 undetected_chromedriver + 6502053
+17  undetected_chromedriver             0x000000010ac70524 undetected_chromedriver + 6403364
+18  undetected_chromedriver             0x000000010ac8898f undetected_chromedriver + 6502799
+19  undetected_chromedriver             0x000000010ac61954 undetected_chromedriver + 6342996
+20  undetected_chromedriver             0x000000010aca0378 undetected_chromedriver + 6599544
+21  undetected_chromedriver             0x000000010aca0535 undetected_chromedriver + 6599989
+22  undetected_chromedriver             0x000000010acaf868 undetected_chromedriver + 6662248
+23  libsystem_pthread.dylib             0x00007ff815dc61d3 _pthread_start + 125
+24  libsystem_pthread.dylib             0x00007ff815dc1bd3 thread_start + 15
+
+2024-12-09 18:17:23,321 - ERROR: Failed to setup WebDriver
+2024-12-09 18:58:41,086 - INFO: Playwright browser setup successful
+2024-12-09 18:58:41,087 - INFO: Visiting https://www.marianos.com/search?... (Attempt 1)
+2024-12-09 18:58:42,027 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: net::ERR_HTTP2_PROTOCOL_ERROR at https://www.marianos.com/search?
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 18:58:43,028 - INFO: Visiting https://www.marianos.com/search?... (Attempt 2)
+2024-12-09 18:58:43,291 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: net::ERR_HTTP2_PROTOCOL_ERROR at https://www.marianos.com/search?
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 18:58:45,292 - INFO: Visiting https://www.marianos.com/search?... (Attempt 3)
+2024-12-09 18:58:45,520 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: net::ERR_HTTP2_PROTOCOL_ERROR at https://www.marianos.com/search?
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 18:58:45,520 - ERROR: Failed to load https://www.marianos.com/search? after 3 attempts
+2024-12-09 18:58:45,583 - INFO: Browser closed successfully
+2024-12-09 18:59:18,223 - INFO: Playwright browser setup successful
+2024-12-09 18:59:18,224 - INFO: Visiting https://www.marianos.com/search?... (Attempt 1)
+2024-12-09 18:59:48,238 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 18:59:49,245 - INFO: Visiting https://www.marianos.com/search?... (Attempt 2)
+2024-12-09 19:00:19,255 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 19:00:21,263 - INFO: Visiting https://www.marianos.com/search?... (Attempt 3)
+2024-12-09 19:00:51,268 - WARNING: Error visiting https://www.marianos.com/search?: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.marianos.com/search?", waiting until "networkidle"
+
+2024-12-09 19:00:51,274 - ERROR: Failed to load https://www.marianos.com/search? after 3 attempts
+2024-12-09 19:00:51,548 - INFO: Browser closed successfully

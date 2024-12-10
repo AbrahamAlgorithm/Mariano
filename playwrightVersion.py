@@ -16,7 +16,7 @@ class MarianosScraperPlaywright:
         
         # Enhanced browser launch options
         self.browser = await playwright.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 '--disable-http2',  # Disable HTTP/2 to avoid protocol errors
                 '--no-sandbox',
