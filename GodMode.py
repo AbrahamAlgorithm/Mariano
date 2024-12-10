@@ -32,7 +32,7 @@ class MarianosScraper:
         user_agent: Optional[str] = None,
         headless: bool = False,
         timeout: int = 30,
-        max_page_loads: int = 50,
+        max_page_loads: int = 1000,
         zip_code: Optional[str] = None
     ):
         self.base_url = base_url
@@ -278,7 +278,7 @@ class MarianosScraper:
                 logger.info("Driver closed")
 
 async def main():
-    scraper = MarianosScraper(max_page_loads=50, zip_code="60610")  # Example zip code
+    scraper = MarianosScraper(max_page_loads=1000, zip_code="60610")  # Example zip code
     
     try:
         product_links = await scraper.scrape(search_term="bread")
