@@ -71,12 +71,6 @@ class MarianosScraper:
         return options
 
     async def dismiss_qualtrics_popup(self) -> bool:
-        """
-        Handle Qualtrics survey popup by clicking 'No, thanks' button.
-        
-        Returns:
-            bool: True if popup was successfully dismissed, False otherwise
-        """
         try:
             # Wait for the Qualtrics popup with a short timeout
             popup = WebDriverWait(self.driver, 5).until(
@@ -280,7 +274,6 @@ class MarianosScraper:
                 return []
             
             url = self.base_url
-            # url = f"{self.base_url}{f'q={search_term}' if search_term else ''}"
 
             if not await self.visit_website(url):
                 return []
@@ -326,7 +319,7 @@ class MarianosScraper:
                 logger.info("Driver closed")
 
 async def main():
-    scraper = MarianosScraper(max_page_loads=1000, zip_code="60610")  # Example zip code
+    scraper = MarianosScraper(max_page_loads=1000, zip_code="60610")
     
     try:
         product_links = await scraper.scrape()
