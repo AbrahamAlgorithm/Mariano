@@ -72,28 +72,22 @@ class MarianosScraper:
 
     async def dismiss_qualtrics_popup(self) -> bool:
         try:
-            # Wait for the Qualtrics popup with a short timeout
             popup = WebDriverWait(self.driver, 5).until(
                 EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'We want to hear from you!')]"))
             )
-            
-            # Find and click the 'No, thanks' button
             no_thanks_button = WebDriverWait(self.driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'No, thanks')]"))
             )
-            
-            # Use JavaScript to click to avoid any overlay issues
+
             self.driver.execute_script("arguments[0].click();", no_thanks_button)
             
             logger.info("Qualtrics popup successfully dismissed")
-            
-            # Add a small delay after dismissing
+
             await asyncio.sleep(random.uniform(1, 3))
             
             return True
         
         except (TimeoutException, NoSuchElementException):
-            # If no popup is found, it's not an error - just return False
             logger.info("No Qualtrics popup found")
             return False
         
@@ -102,13 +96,11 @@ class MarianosScraper:
             return False
 
     async def type_like_human(self, element, text: str, delay: float = 0.2):
-        """Simulate human-like typing."""
         for char in text:
             element.send_keys(char)
             await asyncio.sleep(delay)
 
     async def select_store(self) -> bool:
-        """Select a store based on the provided zip code."""
         if not self.zip_code:
             logger.warning("No zip code provided for store selection")
             return False
@@ -116,14 +108,12 @@ class MarianosScraper:
         try:
             logger.info("Starting store selection process...")
 
-            # First, click on location button
             location_button = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
             )
             location_button.click()
             await asyncio.sleep(random.uniform(5, 10))
 
-            # Try to handle any initial popups or overlays
             try:
                 cancel_icon = WebDriverWait(self.driver, 10).until(
                     EC.element_to_be_clickable((By.ID, "ModalitySelector--CloseButton"))
@@ -133,21 +123,18 @@ class MarianosScraper:
             except Exception:
                 logger.info("No cancel icon found or could not click it")
 
-            # Reopen location button if needed
             location_button = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
             )
             location_button.click()
             await asyncio.sleep(random.uniform(5, 10))
 
-            # Change to pickup mode
             change_store_button = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="ModalityOption-Button-PICKUP"]'))
             )
             change_store_button.click()
             logger.info("Clicked on the change store button")
 
-            # Find and input zip code
             zip_search_input = WebDriverWait(self.driver, self.timeout).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="PostalCodeSearchBox-input"]'))
             )
@@ -156,21 +143,18 @@ class MarianosScraper:
             await self.type_like_human(zip_search_input, self.zip_code)
             logger.info(f"Typed the zip code: {self.zip_code}")
 
-            # Click search icon
             search_icon = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Search"]'))
             )
             search_icon.click()
             logger.info("Clicked on the search icon")
 
-            # Select a specific store (replace with the appropriate selector for your target store)
             store = WebDriverWait(self.driver, self.timeout).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
             )
             store.click()
             logger.info("Selected store successfully!")
 
-            # Wait for store selection to complete
             await asyncio.sleep(random.uniform(5, 10))
             return True
 
