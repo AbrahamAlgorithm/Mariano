@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class MarianosScraper:
     def __init__(
         self, 
-        base_url: str = "https://www.marianos.com/search?",
+        base_url: str = "https://www.marianos.com",
         user_agent: Optional[str] = None,
         headless: bool = False,
         timeout: int = 30,
