@@ -331,37 +331,4 @@ class MarianosScraper:
                 return []
             
             # Visit base URL
-            if not await self.visit_website(self.base_url):
-                return []
-
-            # Dismiss any popups
-            await self.dismiss_qualtrics_popup()
-            
-            # Select store
-            await self.select_store()
-
-            # Scrape each category
-            all_links = []
-            for category in PRODUCT_CATEGORIES:
-                category_links = await self.scrape_category(category)
-                all_links.extend(category_links)
-                
-            return all_links
-
-        except Exception as e:
-            logger.error(f"An error occurred during scraping: {e}")
-            return []
-
-    async def close_driver(self):
-        if self.driver:
-            self.driver.quit()
-            logger.info("Driver closed successfully")
-
-if __json__ == "__main__":
-    scraper = MarianosScraper(zip_code="60601")
-    all_product_links = asyncio.run(scraper.scrape())
-    scraper.close_driver()
-
-    df = pd.DataFrame(all_product_links, columns=["product_url"])
-    df.to_csv("marianos_product_links.csv", index=False)
-    logger.info(f"Saved {len(all_product_links)} product links to CSV")
+            if not await self.visit_website
