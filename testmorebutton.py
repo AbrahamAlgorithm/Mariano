@@ -331,4 +331,61 @@ class MarianosScraper:
                 return []
             
             # Visit base URL
-            if not await self.visit_website
+            if not await self.visit_website(self.base_url):
+                return []
+            
+            # Dismiss any initial popups
+            await self.dismiss_qualtrics_popup()
+            
+            # Select store if zip code is provided
+            if self.zip_code:
+                if not await self.select_store():
+                    logger.warning("Failed to select store, continuing anyway")
+            
+            # Scrape all product categories
+            all_product_links = []
+            for category in PRODUCT_CATEGORIES:
+                category_links = await self.scrape_category(category)
+                all_product_links.extend(category_links)
+            
+            return all_product_links
+        
+        except Exception as e:
+            logger.error(f"Critical error during scraping: {e}")
+            return []
+        
+        finally:
+            # Ensure driver is closed
+            if self.driver:
+                try:
+                    self.driver.quit()
+                    logger.info("WebDriver closed successfully")
+                except Exception as e:
+                    logger.error(f"Error closing WebDriver: {e}")
+
+async def main():
+    try:
+        # Configure scraper with specific parameters
+        scraper = MarianosScraper(
+            headless=SCRAPER_CONFIG.get('headless', False),
+            zip_code=SCRAPER_CONFIG.get('zip_code'),
+            timeout=SCRAPER_CONFIG.get('timeout', 30)
+        )
+        
+        # Run the scraper
+        product_links = await scraper.scrape()
+        
+        # Save results to CSV
+        if product_links:
+            df = pd.DataFrame({'product_link': product_links})
+            output_file = SCRAPER_CONFIG.get('output_file', 'marianos_product_links.csv')
+            df.to_csv(output_file, index=False)
+            logger.info(f"Saved {len(product_links)} product links to {output_file}")
+        else:
+            logger.warning("No product links were found")
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in main execution: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
