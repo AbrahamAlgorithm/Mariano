@@ -253,7 +253,6 @@ class MarianosScraper:
 
     async def search_category(self, category: str) -> bool:
         try:
-            # First, try to click the initial search bar
             try:
                 search_bar = WebDriverWait(self.driver, 10).until(
                     EC.element_to_be_clickable((By.ID, "SearchBar-input"))
@@ -263,30 +262,19 @@ class MarianosScraper:
             except Exception:
                 logger.warning("Could not click initial search bar")
 
-            # Find the open search input 
             search_input = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.ID, "SearchBar-input-open"))
             )
-            
-            # Clear any existing text
             search_input.clear()
-            
-            # Type the category name
             await self.type_like_human(search_input, category)
-            
-            # Press Enter to search
             search_input.send_keys(Keys.RETURN)
             
             logger.info(f"Searched for category: {category}")
-            
-            # Wait for page to load
             await asyncio.sleep(random.uniform(*SCRAPER_CONFIG['search_delay']))
-            
-            # Wait for search results
+
             WebDriverWait(self.driver, self.timeout).until(
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
-            
             return True
         
         except Exception as e:
@@ -294,27 +282,19 @@ class MarianosScraper:
             return False
 
     async def scrape_category(self, category: str) -> List[str]:
-        # Search for the category
         if not await self.search_category(category):
             return []
         
-        # Reset links for this category
         category_links = []
         page_loads = 0
         
         while page_loads < SCRAPER_CONFIG['max_page_loads_per_category']:
-            # Dismiss any popups
             await self.dismiss_qualtrics_popup()
-            
-            # Extract product links
             new_links = self.extract_product_links()
             category_links.extend(new_links)
-            
-            # Try to click Load More
             if not await self.click_load_more():
                 break
-            
-            # Wait between page loads
+                
             await asyncio.sleep(random.uniform(*SCRAPER_CONFIG['load_more_delay']))
             
             page_loads += 1
