@@ -172,27 +172,17 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
     for attempt in range(max_retries + 1):
         try:
             print(f"Attempt {attempt + 1} to click 'Load More' button...")
-
-            # Wait for the button to be clickable
             load_more_button = WebDriverWait(driver, 15).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, 'button.LoadMore__load-more-button'))
             )
             print("Load More button located.")
 
-            # Scroll the button into view
             driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", load_more_button)
-
-            # Short pause to ensure UI stability
             await asyncio.sleep(random.uniform(1.5, 3.5))
-
-            # Click the button
             load_more_button.click()
             print("Clicked 'Load More' button successfully.")
-
-            # Wait for the content to load
             await asyncio.sleep(random.uniform(5, 10))
 
-            # Confirm new content is loaded (customize the condition as needed)
             WebDriverWait(driver, 10).until(
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
@@ -205,8 +195,6 @@ async def click_load_more(driver, max_retries=3, initial_wait=10, backoff_factor
                 wait_time = initial_wait * (backoff_factor ** attempt)
                 print(f"Retrying after {wait_time} seconds...")
                 await asyncio.sleep(wait_time)
-
-                # Refresh the page on retry
                 try:
                     driver.refresh()
                     await asyncio.sleep(random.uniform(5, 10))  # Wait for page reload

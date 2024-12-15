@@ -1,321 +1,367 @@
 import asyncio
 import random
 import logging
-import json
-import os
-from typing import Optional, List, Dict, Any
+from typing import List, Optional
 
-import undetected_chromedriver as uc
-from selenium import webdriver
+from selenium.webdriver import Chrome
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     TimeoutException,
-    StaleElementReferenceException,
     NoSuchElementException,
     WebDriverException,
     ElementClickInterceptedException
 )
+import undetected_chromedriver as uc
+import pandas as pd
 
-# Configure logging
+from config import PRODUCT_CATEGORIES, SCRAPER_CONFIG
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, 
     format='%(asctime)s - %(levelname)s: %(message)s',
-    handlers=[
-        logging.FileHandler('scraper.log'),
-        logging.StreamHandler()
-    ]
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
-class AdvancedWebScraper:
+class MarianosScraper:
     def __init__(
         self, 
-        base_url: str, 
-        output_dir: str = 'scraper_output',
-        max_retries: int = 3,
+        base_url: str = "https://www.marianos.com/",
+        user_agent: Optional[str] = None,
+        headless: bool = False,
         timeout: int = 30,
-        user_agent: Optional[str] = None
+        zip_code: Optional[str] = None
     ):
-        """
-        Initialize the advanced web scraper with configurable parameters.
-        
-        :param base_url: The base URL to scrape
-        :param output_dir: Directory to save scraped data
-        :param max_retries: Maximum number of retries for operations
-        :param timeout: Default timeout for web operations
-        :param user_agent: Custom user agent string
-        """
         self.base_url = base_url
-        self.output_dir = output_dir
-        self.max_retries = max_retries
+        self.user_agent = user_agent or self._generate_user_agent()
+        self.headless = headless
         self.timeout = timeout
-        self.user_agent = user_agent or self._generate_random_user_agent()
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        # Proxy and IP rotation setup (placeholder for future enhancement)
-        self.proxy_list: List[str] = []
-        self.current_proxy: Optional[str] = None
+        self.zip_code = zip_code
+        self.driver: Optional[Chrome] = None
+        self.all_product_links: List[str] = []
+        self.unique_product_links: set = set()
 
     @staticmethod
-    def _generate_random_user_agent() -> str:
-        """
-        Generate a randomized user agent to reduce detection.
-        
-        :return: Random user agent string
-        """
+    def _generate_user_agent() -> str:
         user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0"
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"
         ]
         return random.choice(user_agents)
 
-    async def setup_driver(self) -> Optional[uc.Chrome]:
-        """
-        Setup an undetectable Chrome WebDriver with advanced configurations.
+    def _setup_driver_options(self) -> Options:
+        options = Options()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--start-maximized")
+        options.add_argument("--incognito")
+        options.add_argument(f"user-agent={self.user_agent}")
         
-        :return: Configured WebDriver or None if setup fails
-        """
-        try:
-            options = uc.ChromeOptions()
-            
-            # Advanced browser configurations
-            options.add_argument("--disable-notifications")
-            options.add_argument("--start-maximized")
-            options.add_argument("--disable-popup-blocking")
-            options.add_argument("--incognito")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--window-size=1920,1080")
-            
-            # Add user agent
-            options.add_argument(f'--user-agent={self.user_agent}')
-            
-            # Experimental: Add more stealth options
-            options.add_argument("--disable-blink-features=AutomationControlled")
-            options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            options.add_experimental_option('useAutomationExtension', False)
+        if self.headless:
+            options.add_argument("--headless")
+        
+        return options
 
-            # Create the undetectable driver
-            driver = uc.Chrome(options=options)
+    async def dismiss_qualtrics_popup(self) -> bool:
+        try:
+            popup = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'We want to hear from you!')]"))
+            )
+            no_thanks_button = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'No, thanks')]"))
+            )
+
+            self.driver.execute_script("arguments[0].click();", no_thanks_button)
             
-            # Additional stealth techniques
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            logger.info("Qualtrics popup successfully dismissed")
+
+            await asyncio.sleep(random.uniform(1, 3))
             
-            logger.info("Undetectable WebDriver setup successful")
-            return driver
+            return True
+        
+        except (TimeoutException, NoSuchElementException):
+            logger.info("No Qualtrics popup found")
+            return False
+        
+        except Exception as e:
+            logger.warning(f"Error handling Qualtrics popup: {e}")
+            return False
+
+    async def type_like_human(self, element, text: str, delay: float = 0.2):
+        for char in text:
+            element.send_keys(char)
+            await asyncio.sleep(delay)
+
+    async def select_store(self) -> bool:
+        if not self.zip_code:
+            logger.warning("No zip code provided for store selection")
+            return False
+
+        try:
+            logger.info("Starting store selection process...")
+
+            location_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+            )
+            location_button.click()
+            await asyncio.sleep(random.uniform(5, 10))
+
+            try:
+                cancel_icon = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, "ModalitySelector--CloseButton"))
+                )
+                cancel_icon.click()
+                await asyncio.sleep(random.uniform(2, 5))
+            except Exception:
+                logger.info("No cancel icon found or could not click it")
+
+            location_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
+            )
+            location_button.click()
+            await asyncio.sleep(random.uniform(5, 10))
+
+            change_store_button = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="ModalityOption-Button-PICKUP"]'))
+            )
+            change_store_button.click()
+            logger.info("Clicked on the change store button")
+
+            zip_search_input = WebDriverWait(self.driver, self.timeout).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="PostalCodeSearchBox-input"]'))
+            )
+            zip_search_input.clear()
+            
+            await self.type_like_human(zip_search_input, self.zip_code)
+            logger.info(f"Typed the zip code: {self.zip_code}")
+
+            search_icon = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Search"]'))
+            )
+            search_icon.click()
+            logger.info("Clicked on the search icon")
+
+            store = WebDriverWait(self.driver, self.timeout).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
+            )
+            store.click()
+            logger.info("Selected store successfully!")
+
+            await asyncio.sleep(random.uniform(5, 10))
+            return True
 
         except Exception as e:
-            logger.error(f"Error setting up undetectable WebDriver: {e}")
+            logger.error(f"An error occurred during store selection: {e}")
+            return False
+
+    async def setup_driver(self) -> Optional[Chrome]:
+        try:
+            options = self._setup_driver_options()
+            self.driver = uc.Chrome(options=options)
+            logger.info("Driver setup complete")
+            return self.driver
+        except WebDriverException as e:
+            logger.error(f"Error setting up undetectable webdriver: {e}")
             return None
 
-    async def visit_website(self, driver: uc.Chrome, url: str) -> bool:
-        """
-        Visit a website with advanced error handling and retry mechanism.
-        
-        :param driver: WebDriver instance
-        :param url: URL to visit
-        :return: True if successful, False otherwise
-        """
-        for attempt in range(self.max_retries):
+    async def visit_website(self, url: str, max_retries: int = 3) -> bool:
+        if not self.driver:
+            logger.error("Driver not initialized")
+            return False
+
+        for attempt in range(max_retries):
             try:
                 logger.info(f"Visiting {url}... (Attempt {attempt + 1})")
-                driver.get(url)
-                
-                # Wait for page to load
-                WebDriverWait(driver, self.timeout).until(
+                self.driver.get(url)
+
+                WebDriverWait(self.driver, self.timeout).until(
                     lambda d: d.execute_script("return document.readyState") == "complete"
                 )
                 
-                # Random human-like delay
-                await asyncio.sleep(random.uniform(2, 5))
-                
                 logger.info(f"Successfully loaded {url}")
+                await asyncio.sleep(random.uniform(2, 5))
                 return True
             
             except Exception as e:
                 logger.warning(f"Error visiting {url}: {e}")
                 
-                if attempt < self.max_retries - 1:
-                    # Exponential backoff
-                    await asyncio.sleep(2 ** attempt)
-                else:
-                    logger.error(f"Failed to load {url} after {self.max_retries} attempts")
+                if attempt == max_retries - 1:
+                    logger.error(f"Failed to load {url} after {max_retries} attempts")
                     return False
+                
+                await asyncio.sleep(random.uniform(3, 7))
 
-    async def advanced_load_more(self, driver: uc.Chrome) -> bool:
-        """
-        Advanced 'Load More' button clicking with sophisticated error handling.
+    def extract_product_links(self) -> List[str]:
+        try:
+            product_containers = WebDriverWait(self.driver, self.timeout).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[data-testid="auto-grid-cell"]'))
+            )
+
+            new_links = [
+                container.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
+                for container in product_containers
+            ]
+
+            unique_new_links = [
+                link for link in new_links 
+                if link not in self.unique_product_links
+            ]
+            
+            self.unique_product_links.update(unique_new_links)
+            self.all_product_links.extend(unique_new_links)
+            
+            logger.info(f"Found {len(unique_new_links)} new product links")
+            return unique_new_links
         
-        :param driver: WebDriver instance
-        :return: True if successful, False otherwise
-        """
-        for attempt in range(self.max_retries):
+        except Exception as e:
+            logger.error(f"Error extracting product links: {e}")
+            return []
+
+    async def click_load_more(self) -> bool:
+        try:
+            load_more_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'button.LoadMore__load-more-button'))
+            )
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", 
+                load_more_button
+            )           
+            await asyncio.sleep(random.uniform(1.5, 3.5))
+            load_more_button.click()
+            logger.info("Clicked 'Load More' button")
+            await asyncio.sleep(random.uniform(5, 10))
+            WebDriverWait(self.driver, self.timeout).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )            
+            return True
+        
+        except (TimeoutException, NoSuchElementException):
+            logger.info("No more 'Load More' button found")
+            return False
+        
+        except Exception as e:
+            logger.warning(f"Error clicking 'Load More' button: {e}")
+            return False
+
+    async def search_category(self, category: str) -> bool:
+        try:
+            # First, try to click the initial search bar
             try:
-                logger.info(f"Load More attempt {attempt + 1}")
-                
-                # Wait for the button, using multiple possible selectors
-                load_more_selectors = [
-                    'button.LoadMore__load-more-button',
-                    'div[data-testid="load-more"]',
-                    'a.load-more-link',
-                    'button#load-more'
-                ]
-                
-                load_more_button = None
-                for selector in load_more_selectors:
-                    try:
-                        load_more_button = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-                        )
-                        break
-                    except TimeoutException:
-                        continue
-                
-                if not load_more_button:
-                    logger.warning("No 'Load More' button found")
-                    return False
-                
-                # Scroll to button smoothly
-                driver.execute_script(
-                    "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", 
-                    load_more_button
+                search_bar = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.ID, "SearchBar-input"))
                 )
-                
-                # Human-like interaction simulation
-                await asyncio.sleep(random.uniform(1.5, 3.5))
-                
-                # Click with JavaScript to avoid potential overlay issues
-                driver.execute_script("arguments[0].click();", load_more_button)
-                
-                # Wait for content to load
-                await asyncio.sleep(random.uniform(5, 10))
-                
-                # Verify content load
-                WebDriverWait(driver, 10).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-                
-                logger.info("Successfully clicked 'Load More'")
-                return True
-            
-            except Exception as e:
-                logger.warning(f"Load More error: {e}")
-                
-                if attempt < self.max_retries - 1:
-                    # Refresh page and wait
-                    driver.refresh()
-                    await asyncio.sleep(random.uniform(5, 10))
-                else:
-                    logger.error("Failed to click 'Load More' after multiple attempts")
-                    return False
+                search_bar.click()
+                logger.info("Clicked initial search bar")
+            except Exception:
+                logger.warning("Could not click initial search bar")
 
-    async def scrape_data(self, driver: uc.Chrome) -> List[Dict[str, Any]]:
-        """
-        Scrape data from the webpage.
-        
-        :param driver: WebDriver instance
-        :return: List of scraped data dictionaries
-        """
-        scraped_data = []
-        
-        try:
-            # Example: Find all product elements (customize as needed)
-            product_elements = driver.find_elements(By.CSS_SELECTOR, '.product-item')
+            # Find the open search input 
+            search_input = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, "SearchBar-input-open"))
+            )
             
-            for element in product_elements:
-                try:
-                    product_data = {
-                        'name': element.find_element(By.CSS_SELECTOR, '.product-name').text,
-                        'price': element.find_element(By.CSS_SELECTOR, '.product-price').text,
-                        # Add more fields as needed
-                    }
-                    scraped_data.append(product_data)
-                except Exception as e:
-                    logger.warning(f"Error extracting product data: {e}")
+            # Clear any existing text
+            search_input.clear()
+            
+            # Type the category name
+            await self.type_like_human(search_input, category)
+            
+            # Press Enter to search
+            search_input.send_keys(Keys.RETURN)
+            
+            logger.info(f"Searched for category: {category}")
+            
+            # Wait for page to load
+            await asyncio.sleep(random.uniform(*SCRAPER_CONFIG['search_delay']))
+            
+            # Wait for search results
+            WebDriverWait(self.driver, self.timeout).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            
+            return True
         
         except Exception as e:
-            logger.error(f"Error during data scraping: {e}")
-        
-        return scraped_data
+            logger.error(f"Error searching for category {category}: {e}")
+            return False
 
-    async def save_data(self, data: List[Dict[str, Any]], filename: str = 'scraped_data'):
-        """
-        Save scraped data to JSON and CSV files.
+    async def scrape_category(self, category: str) -> List[str]:
+        # Search for the category
+        if not await self.search_category(category):
+            return []
         
-        :param data: List of scraped data dictionaries
-        :param filename: Base filename for output files
-        """
-        if not data:
-            logger.warning("No data to save")
-            return
+        # Reset links for this category
+        category_links = []
+        page_loads = 0
         
-        # Save JSON
-        json_path = os.path.join(self.output_dir, f'{filename}.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+        while page_loads < SCRAPER_CONFIG['max_page_loads_per_category']:
+            # Dismiss any popups
+            await self.dismiss_qualtrics_popup()
+            
+            # Extract product links
+            new_links = self.extract_product_links()
+            category_links.extend(new_links)
+            
+            # Try to click Load More
+            if not await self.click_load_more():
+                break
+            
+            # Wait between page loads
+            await asyncio.sleep(random.uniform(*SCRAPER_CONFIG['load_more_delay']))
+            
+            page_loads += 1
+            logger.info(f"Loaded page {page_loads} for category {category}")
         
-        # Save CSV (requires pandas)
-        import pandas as pd
-        csv_path = os.path.join(self.output_dir, f'{filename}.csv')
-        df = pd.DataFrame(data)
-        df.to_csv(csv_path, index=False, encoding='utf-8')
-        
-        logger.info(f"Data saved: {json_path}, {csv_path}")
+        logger.info(f"Finished scraping category {category}. Found {len(category_links)} links.")
+        return category_links
 
-    async def main_scraping_workflow(self):
-        """
-        Main asynchronous scraping workflow.
-        """
-        driver = await self.setup_driver()
-        if not driver:
-            logger.error("Failed to setup WebDriver")
-            return
-        
+    async def scrape(self) -> List[str]:
         try:
-            # Visit website
-            if not await self.visit_website(driver, self.base_url):
-                return
+            # Setup driver
+            driver = await self.setup_driver()
+            if not driver:
+                return []
             
-            # Load more content
-            content_loaded = await self.advanced_load_more(driver)
-            if not content_loaded:
-                logger.warning("Could not load more content")
+            # Visit base URL
+            if not await self.visit_website(self.base_url):
+                return []
+
+            # Dismiss any popups
+            await self.dismiss_qualtrics_popup()
             
-            # Scrape data
-            scraped_data = await self.scrape_data(driver)
-            
-            # Save data
-            await self.save_data(scraped_data)
-        
+            # Select store
+            await self.select_store()
+
+            # Scrape each category
+            all_links = []
+            for category in PRODUCT_CATEGORIES:
+                category_links = await self.scrape_category(category)
+                all_links.extend(category_links)
+                
+            return all_links
+
         except Exception as e:
-            logger.error(f"Unexpected error in scraping workflow: {e}")
-        
-        finally:
-            # Always close the driver
-            if driver:
-                driver.quit()
-                logger.info("Browser closed successfully")
+            logger.error(f"An error occurred during scraping: {e}")
+            return []
 
-async def main():
-    """
-    Entry point for the scraping script.
-    """
-    scraper = AdvancedWebScraper(
-        base_url="https://www.marianos.com/search?",
-        output_dir='marianos_data',
-        max_retries=3,
-        timeout=30
-    )
-    
-    await scraper.main_scraping_workflow()
+    async def close_driver(self):
+        if self.driver:
+            self.driver.quit()
+            logger.info("Driver closed successfully")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __json__ == "__main__":
+    scraper = MarianosScraper(zip_code="60601")
+    all_product_links = asyncio.run(scraper.scrape())
+    scraper.close_driver()
+
+    df = pd.DataFrame(all_product_links, columns=["product_url"])
+    df.to_csv("marianos_product_links.csv", index=False)
+    logger.info(f"Saved {len(all_product_links)} product links to CSV")
