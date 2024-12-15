@@ -16,5 +16,7 @@ PRODUCT_CATEGORIES = [
 SCRAPER_CONFIG = {
     'max_page_loads_per_category': 1000,
     'search_delay': (5, 10),
-    'load_more_delay': (5, 10)
+    'load_more_delay': (5, 10),
+    'zip_code': '60610'
 }
+
