@@ -325,24 +325,20 @@ class MarianosScraper:
 
     async def scrape(self) -> List[str]:
         try:
-            # Setup driver
             driver = await self.setup_driver()
             if not driver:
                 return []
             
-            # Visit base URL
             if not await self.visit_website(self.base_url):
                 return []
-            
-            # Dismiss any initial popups
+
             await self.dismiss_qualtrics_popup()
             
-            # Select store if zip code is provided
             if self.zip_code:
+                store_selected = await self.select_store()
                 if not await self.select_store():
                     logger.warning("Failed to select store, continuing anyway")
-            
-            # Scrape all product categories
+
             all_product_links = []
             for category in PRODUCT_CATEGORIES:
                 category_links = await self.scrape_category(category)
@@ -355,7 +351,6 @@ class MarianosScraper:
             return []
         
         finally:
-            # Ensure driver is closed
             if self.driver:
                 try:
                     self.driver.quit()
@@ -378,7 +373,7 @@ async def main():
         # Save results to CSV
         if product_links:
             df = pd.DataFrame({'product_link': product_links})
-            output_file = SCRAPER_CONFIG.get('output_file', 'marianos_product_links.csv')
+            output_file = SCRAPER_CONFIG.get('output_file', 'marianos_product.csv')
             df.to_csv(output_file, index=False)
             logger.info(f"Saved {len(product_links)} product links to {output_file}")
         else:
