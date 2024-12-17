@@ -258,6 +258,7 @@ class MarianosScraper:
                     EC.element_to_be_clickable((By.ID, "SearchBar-input"))
                 )
                 search_bar.click()
+                seearch_bar.clear()
                 logger.info("Clicked initial search bar")
             except Exception:
                 logger.warning("Could not click initial search bar")
@@ -265,6 +266,7 @@ class MarianosScraper:
             search_input = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.ID, "SearchBar-input-open"))
             )
+            search_input.clear()
             search_input.clear()
             await self.type_like_human(search_input, category)
             search_input.send_keys(Keys.RETURN)
@@ -340,17 +342,13 @@ class MarianosScraper:
 
 async def main():
     try:
-        # Configure scraper with specific parameters
         scraper = MarianosScraper(
             headless=SCRAPER_CONFIG.get('headless', False),
             zip_code=SCRAPER_CONFIG.get('zip_code'),
             timeout=SCRAPER_CONFIG.get('timeout', 30)
         )
-        
-        # Run the scraper
         product_links = await scraper.scrape()
-        
-        # Save results to CSV
+
         if product_links:
             df = pd.DataFrame({'product_link': product_links})
             output_file = SCRAPER_CONFIG.get('output_file', 'marianos_product.csv')
