@@ -69,10 +69,10 @@ class MarianosScraper:
         options.add_argument("--start-maximized")
         options.add_argument("--incognito")
         
-        # Advanced CDP Detection Evasion
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
+        # # Advanced CDP Detection Evasion
+        # options.add_argument("--disable-blink-features=AutomationControlled")
+        # options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        # options.add_experimental_option('useAutomationExtension', False)
         
         # Add proxy if available
         if self.current_proxy:
@@ -373,7 +373,6 @@ class MarianosScraper:
         
         logger.info(f"Finished scraping category {category}. Found {len(category_links)} links.")
         return category_links
-
 
     async def scrape(self) -> List[str]:
         try:
