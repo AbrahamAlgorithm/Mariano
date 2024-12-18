@@ -1,6 +1,8 @@
 import asyncio
 import random
 import logging
+import time
+from typing import Optional, Dict
 from typing import List, Optional
 
 from selenium.webdriver import Chrome
@@ -44,6 +46,7 @@ class MarianosScraper:
         self.driver: Optional[Chrome] = None
         self.all_product_links: List[str] = []
         self.unique_product_links: set = set()
+        self.product_data: List[Dict] = []
 
     @staticmethod
     def _generate_user_agent() -> str:
@@ -295,8 +298,16 @@ class MarianosScraper:
         
         while page_loads < SCRAPER_CONFIG['max_page_loads_per_category']:
             await self.dismiss_qualtrics_popup()
-            new_links = self.extract_product_links()
-            category_links.extend(new_links)
+            
+            # Get current page links
+            current_page_links = self.extract_product_links()
+            
+            # Process links in new tabs
+            await self.process_links_in_new_tabs(current_page_links)
+            
+            category_links.extend(current_page_links)
+            
+            # Check if there are more pages to load
             if not await self.click_load_more():
                 break
                 
@@ -307,6 +318,182 @@ class MarianosScraper:
         
         logger.info(f"Finished scraping category {category}. Found {len(category_links)} links.")
         return category_links
+
+
+    async def process_links_in_new_tabs(self, links: List[str]):
+        main_window = None
+        new_tab = None
+        try:
+            # Store the original window
+            main_window = self.driver.current_window_handle
+            
+            # Open a new tab
+            self.driver.execute_script("window.open('');")
+            await asyncio.sleep(2)
+            
+            # Switch to the new tab
+            new_tab = self.driver.window_handles[-1]
+            self.driver.switch_to.window(new_tab)
+            
+            # Keep track of processed links to save partial results
+            processed_links = []
+            
+            # Iterate through links
+            for link in links:
+                try:
+                    logger.info(f"Visiting product link: {link}")
+                    self.driver.get(link)
+                    
+                    # Call the product detail scraping method
+                    product_detail = await self.scrape_product_details()
+                    
+                    if product_detail:
+                        processed_links.append(link)
+                    
+                    await asyncio.sleep(random.uniform(2, 5))
+                
+                except Exception as e:
+                    logger.error(f"Error processing product link {link}: {e}")
+                    # Continue processing other links even if one fails
+                    continue
+        
+        except Exception as e:
+            logger.error(f"Critical error in processing links: {e}")
+        
+        finally:
+            try:
+                # Attempt to close the new tab
+                if new_tab and new_tab in self.driver.window_handles:
+                    self.driver.close()
+                
+                # Switch back to main window
+                if main_window and main_window in self.driver.window_handles:
+                    self.driver.switch_to.window(main_window)
+                
+                # Log the processed links
+                logger.info(f"Processed {len(processed_links)} out of {len(links)} links")
+                
+                # Optional: Save partial results if desired
+                if self.product_data:
+                    try:
+                        save_to_excel(self.product_data, f'marianos_partial_product_details_{int(time.time())}.xlsx')
+                        logger.info(f"Saved {len(self.product_data)} partial product details")
+                    except Exception as save_error:
+                        logger.error(f"Error saving partial results: {save_error}")
+            
+            except Exception as cleanup_error:
+                logger.error(f"Error during cleanup: {cleanup_error}")
+
+    product_data = []
+    async def scrape_product_details(self):
+        try:
+            await asyncio.sleep(10)
+            
+            # Get product details
+            product_name = self.driver.find_element(By.CSS_SELECTOR, 'h1[data-testid="product-details-name"]').text
+            upc = self.driver.find_element(By.CSS_SELECTOR, 'span[data-testid="product-details-upc"]').text.replace("UPC: ", "")
+            upc = f"#{upc}"
+            location = self.driver.find_element(By.CSS_SELECTOR, 'span[data-testid="product-details-location"]').text
+
+            try:
+                # Find the breadcrumb navigation
+                breadcrumb_elements = self.driver.find_elements(By.CSS_SELECTOR, 'a.kds-Link.kds-Link--inherit.mr-4')
+
+                # Iterate through the breadcrumb links and find the one that is not "Home"
+                for breadcrumb_element in breadcrumb_elements:
+                    if breadcrumb_element.text != "Home":
+                        category = breadcrumb_element.text
+                        break
+                else:
+                    category = "Uncategorized"
+            except NoSuchElementException:
+                category = "Uncategorized"
+
+            try:
+                # Try to find the price element
+                price_element = self.driver.find_element(By.CSS_SELECTOR, '[typeof="Price"]')
+                price = f"${price_element.get_attribute('value')}"
+            except NoSuchElementException:
+                try:
+                    # If regular price not found, look for promotional price
+                    price_element = self.driver.find_element(By.CSS_SELECTOR, 'mark.kds-Price-promotional')
+                    dollars = price_element.find_element(By.CSS_SELECTOR, 'span.kds-Price-promotional-dropCaps').text
+                    cents = price_element.find_element(By.CSS_SELECTOR, 'sup.kds-Price-superscript').text.replace(".", "")
+                    price = f"${dollars}.{cents}"
+                except NoSuchElementException:
+                    price = "Price not available"
+
+            try:
+                # Try to find product image
+                image_element = self.driver.find_element(By.CSS_SELECTOR, '.ProductImages-image')
+                image_url = image_element.get_attribute('src')
+            except NoSuchElementException:
+                image_url = "No image available"
+
+            # Append data to the class-level product_data list
+            product_detail = {
+                'UPC': upc,
+                'Category': category,
+                'Title': product_name,
+                'Location': location,
+                'Price': price,
+                'Image URL': image_url
+            }
+            
+            self.product_data.append(product_detail)
+            
+            logger.info(f"Scraped product: {product_name}")
+            
+            return product_detail
+            
+        except Exception as e:
+            logger.error(f"Error scraping product details: {e}")
+            return None
+
+    
+    def save_to_excel(data, filename="product_details.xlsx"):
+        # Create DataFrame
+        df = pd.DataFrame(data)
+        
+        # Create Excel writer object with xlsxwriter engine
+        writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        
+        # Write DataFrame to excel
+        df.to_excel(writer, index=False, sheet_name='Products')
+        
+        # Get workbook and worksheet objects
+        workbook = writer.book
+        worksheet = writer.sheets['Products']
+        
+        # Define formats
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#D7E4BC',
+            'border': 1
+        })
+        
+        # Set column widths
+        worksheet.set_column('A:A', 15)  # UPC
+        worksheet.set_column('B:B', 20)  # Category
+        worksheet.set_column('C:C', 50)  # Title
+        worksheet.set_column('D:D', 15)  # Location
+        worksheet.set_column('E:E', 10)  # Price
+        worksheet.set_column('F:F', 50)  # Image URL
+        
+        # Write headers with format
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value, header_format)
+        
+        # Add auto-filter
+        worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+        
+        # Save the workbook
+        writer.close()
+        
+        print(f"Excel file saved as {filename}")
+
 
     async def scrape(self) -> List[str]:
         try:
@@ -328,11 +515,22 @@ class MarianosScraper:
             for category in PRODUCT_CATEGORIES:
                 category_links = await self.scrape_category(category)
                 all_product_links.extend(category_links)
+
+            if self.product_data:
+                save_to_excel(self.product_data, 'marianos_final_product_details.xlsx')
+                logger.info(f"Saved {len(self.product_data)} total product details")
             
             return all_product_links
         
         except Exception as e:
             logger.error(f"Critical error during scraping: {e}")
+            if self.product_data:
+                try:
+                    save_to_excel(self.product_data, f'marianos_emergency_save_{int(time.time())}.xlsx')
+                    logger.info(f"Saved {len(self.product_data)} emergency product details")
+                except Exception as save_error:
+                    logger.error(f"Error saving emergency results: {save_error}")
+
             return []
         
         finally:
