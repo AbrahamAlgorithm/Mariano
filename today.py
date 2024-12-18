@@ -1,7 +1,7 @@
 import asyncio
 import random
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
@@ -44,6 +44,7 @@ class MarianosScraper:
         self.driver: Optional[Chrome] = None
         self.all_product_links: List[str] = []
         self.unique_product_links: set = set()
+        self.product_data: List[Dict] = []
 
     @staticmethod
     def _generate_user_agent() -> str:
@@ -69,44 +70,6 @@ class MarianosScraper:
             options.add_argument("--headless")
         
         return options
-
-
-    async def setup_driver(self) -> Optional[Chrome]:
-        try:
-            options = self._setup_driver_options()
-            self.driver = uc.Chrome(options=options)
-            logger.info("Driver setup complete")
-            return self.driver
-        except WebDriverException as e:
-            logger.error(f"Error setting up undetectable webdriver: {e}")
-            return None
-
-    async def visit_website(self, url: str, max_retries: int = 3) -> bool:
-        if not self.driver:
-            logger.error("Driver not initialized")
-            return False
-
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Visiting {url}... (Attempt {attempt + 1})")
-                self.driver.get(url)
-
-                WebDriverWait(self.driver, self.timeout).until(
-                    lambda d: d.execute_script("return document.readyState") == "complete"
-                )
-                
-                logger.info(f"Successfully loaded {url}")
-                await asyncio.sleep(random.uniform(2, 5))
-                return True
-            
-            except Exception as e:
-                logger.warning(f"Error visiting {url}: {e}")
-                
-                if attempt == max_retries - 1:
-                    logger.error(f"Failed to load {url} after {max_retries} attempts")
-                    return False
-                
-                await asyncio.sleep(random.uniform(3, 7))
 
     async def dismiss_qualtrics_popup(self) -> bool:
         try:
@@ -138,69 +101,104 @@ class MarianosScraper:
             element.send_keys(char)
             await asyncio.sleep(delay)
 
-    async def select_store(self) -> bool:
-        if not self.zip_code:
-            logger.warning("No zip code provided for store selection")
-            return False
-
+    async def scrape_product_details(self, link: str) -> Optional[Dict]:
         try:
-            logger.info("Starting store selection process...")
-
-            location_button = WebDriverWait(self.driver, self.timeout).until(
-                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
-            )
-            location_button.click()
-            await asyncio.sleep(random.uniform(5, 10))
+            await asyncio.sleep(3)  # Allow page to load
+            
+            # Get product details
+            product_name = self.driver.find_element(By.CSS_SELECTOR, 'h1[data-testid="product-details-name"]').text
+            upc = self.driver.find_element(By.CSS_SELECTOR, 'span[data-testid="product-details-upc"]').text.replace("UPC: ", "")
+            upc = f"#{upc}"
+            location = self.driver.find_element(By.CSS_SELECTOR, 'span[data-testid="product-details-location"]').text
 
             try:
-                cancel_icon = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.ID, "ModalitySelector--CloseButton"))
-                )
-                cancel_icon.click()
-                await asyncio.sleep(random.uniform(2, 5))
-            except Exception:
-                logger.info("No cancel icon found or could not click it")
+                # Find the breadcrumb navigation
+                breadcrumb_elements = self.driver.find_elements(By.CSS_SELECTOR, 'a.kds-Link.kds-Link--inherit.mr-4')
 
-            location_button = WebDriverWait(self.driver, self.timeout).until(
-                EC.element_to_be_clickable((By.ID, "CurrentModality-button-A11Y-FOCUS-ID"))
-            )
-            location_button.click()
-            await asyncio.sleep(random.uniform(5, 10))
+                # Iterate through the breadcrumb links and find the one that is not "Home"
+                for breadcrumb_element in breadcrumb_elements:
+                    if breadcrumb_element.text != "Home":
+                        category = breadcrumb_element.text
+                        break
+                else:
+                    category = "Uncategorized"
+            except NoSuchElementException:
+                category = "Uncategorized"
 
-            change_store_button = WebDriverWait(self.driver, self.timeout).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="ModalityOption-Button-PICKUP"]'))
-            )
-            change_store_button.click()
-            logger.info("Clicked on the change store button")
+            try:
+                price_element = self.driver.find_element(By.CSS_SELECTOR, '[typeof="Price"]')
+                price = f"${price_element.get_attribute('value')}"
+            except NoSuchElementException:
+                try:
+                    price_element = self.driver.find_element(By.CSS_SELECTOR, 'mark.kds-Price-promotional')
+                    dollars = price_element.find_element(By.CSS_SELECTOR, 'span.kds-Price-promotional-dropCaps').text
+                    cents = price_element.find_element(By.CSS_SELECTOR, 'sup.kds-Price-superscript').text.replace(".", "")
+                    price = f"${dollars}.{cents}"
+                except NoSuchElementException:
+                    price = "Price Not Available"
 
-            zip_search_input = WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="PostalCodeSearchBox-input"]'))
-            )
-            zip_search_input.clear()
+            try:
+                image_element = self.driver.find_element(By.CSS_SELECTOR, '.ProductImages-image')
+                image_url = image_element.get_attribute('src')
+            except NoSuchElementException:
+                image_url = "No image available"
+
+            product_detail = {
+                'UPC': upc,
+                'Category': category,
+                'Title': product_name,
+                'Location': location,
+                'Price': price,
+                'Image URL': image_url,
+                'Product Link': link
+            }
+
+            logger.info(f"Scraped product: {product_name}")
+            return product_detail
             
-            await self.type_like_human(zip_search_input, self.zip_code)
-            logger.info(f"Typed the zip code: {self.zip_code}")
+        except Exception as e:
+            logger.error(f"Error scraping product details: {e}")
+            return None
 
-            search_icon = WebDriverWait(self.driver, self.timeout).until(
-                EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Search"]'))
-            )
-            search_icon.click()
-            logger.info("Clicked on the search icon")
+    async def process_product_links(self, category_links: List[str]) -> List[Dict]:
+        main_window = self.driver.current_window_handle
+        category_product_details = []
 
-            store = WebDriverWait(self.driver, self.timeout).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, '[data-testid="SelectStore-53100516"]'))
-            )
-            store.click()
-            logger.info("Selected store successfully!")
+        try:
+            # Open a new tab
+            self.driver.execute_script("window.open('');")
+            await asyncio.sleep(2)
+            
+            # Switch to the new tab
+            self.driver.switch_to.window(self.driver.window_handles[-1])
 
-            await asyncio.sleep(random.uniform(5, 10))
-            return True
+            for link in category_links:
+                try:
+                    logger.info(f"Processing link: {link}")
+                    self.driver.get(link)
+                    
+                    # Scrape product details
+                    product_detail = await self.scrape_product_details(link)
+                    
+                    if product_detail:
+                        category_product_details.append(product_detail)
+                    
+                    # Short random delay between product page visits
+                    await asyncio.sleep(random.uniform(2, 5))
+
+                except Exception as link_error:
+                    logger.error(f"Error processing link {link}: {link_error}")
+                    continue
 
         except Exception as e:
-            logger.error(f"An error occurred during store selection: {e}")
-            return False
+            logger.error(f"Critical error in processing links: {e}")
+        
+        finally:
+            # Close the tab and switch back to main window
+            self.driver.close()
+            self.driver.switch_to.window(main_window)
 
-    
+        return category_product_details
 
     def extract_product_links(self) -> List[str]:
         try:
@@ -261,7 +259,7 @@ class MarianosScraper:
                     EC.element_to_be_clickable((By.ID, "SearchBar-input"))
                 )
                 search_bar.click()
-                seearch_bar.clear()
+                search_bar.clear()
                 logger.info("Clicked initial search bar")
             except Exception:
                 logger.warning("Could not click initial search bar")
@@ -269,7 +267,6 @@ class MarianosScraper:
             search_input = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((By.ID, "SearchBar-input-open"))
             )
-            search_input.clear()
             search_input.clear()
             await self.type_like_human(search_input, category)
             search_input.send_keys(Keys.RETURN)
@@ -286,17 +283,25 @@ class MarianosScraper:
             logger.error(f"Error searching for category {category}: {e}")
             return False
 
-    async def scrape_category(self, category: str) -> List[str]:
+    async def scrape_category(self, category: str) -> List[Dict]:
         if not await self.search_category(category):
             return []
         
-        category_links = []
+        category_product_details = []
         page_loads = 0
         
         while page_loads < SCRAPER_CONFIG['max_page_loads_per_category']:
+            # Dismiss any popups
             await self.dismiss_qualtrics_popup()
-            new_links = self.extract_product_links()
-            category_links.extend(new_links)
+            
+            # Extract product links for current page
+            current_page_links = self.extract_product_links()
+            
+            # Process links in a new tab and collect product details
+            page_product_details = await self.process_product_links(current_page_links)
+            category_product_details.extend(page_product_details)
+            
+            # Try to click load more button
             if not await self.click_load_more():
                 break
                 
@@ -305,10 +310,47 @@ class MarianosScraper:
             page_loads += 1
             logger.info(f"Loaded page {page_loads} for category {category}")
         
-        logger.info(f"Finished scraping category {category}. Found {len(category_links)} links.")
-        return category_links
+        logger.info(f"Finished scraping category {category}. Found {len(category_product_details)} product details.")
+        return category_product_details
 
-    async def scrape(self) -> List[str]:
+    async def setup_driver(self) -> Optional[Chrome]:
+        try:
+            options = self._setup_driver_options()
+            self.driver = uc.Chrome(options=options)
+            logger.info("Driver setup complete")
+            return self.driver
+        except WebDriverException as e:
+            logger.error(f"Error setting up undetectable webdriver: {e}")
+            return None
+
+    async def visit_website(self, url: str, max_retries: int = 3) -> bool:
+        if not self.driver:
+            logger.error("Driver not initialized")
+            return False
+
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Visiting {url}... (Attempt {attempt + 1})")
+                self.driver.get(url)
+
+                WebDriverWait(self.driver, self.timeout).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+                
+                logger.info(f"Successfully loaded {url}")
+                await asyncio.sleep(random.uniform(2, 5))
+                return True
+            
+            except Exception as e:
+                logger.warning(f"Error visiting {url}: {e}")
+                
+                if attempt == max_retries - 1:
+                    logger.error(f"Failed to load {url} after {max_retries} attempts")
+                    return False
+                
+                await asyncio.sleep(random.uniform(3, 7))
+
+    async def scrape(self) -> List[Dict]:
         try:
             driver = await self.setup_driver()
             if not driver:
@@ -319,22 +361,17 @@ class MarianosScraper:
 
             await self.dismiss_qualtrics_popup()
             
-            if self.zip_code:
-                store_selected = await self.select_store()
-                if not await self.select_store():
-                    logger.warning("Failed to select store, continuing anyway")
-
-            all_product_links = []
+            all_product_details = []
             for category in PRODUCT_CATEGORIES:
-                category_links = await self.scrape_category(category)
-                all_product_links.extend(category_links)
+                category_product_details = await self.scrape_category(category)
+                all_product_details.extend(category_product_details)
             
-            return all_product_links
+            return all_product_details
         
         except Exception as e:
             logger.error(f"Critical error during scraping: {e}")
             return []
-        
+
         finally:
             if self.driver:
                 try:
@@ -344,24 +381,17 @@ class MarianosScraper:
                     logger.error(f"Error closing WebDriver: {e}")
 
 async def main():
-    try:
-        scraper = MarianosScraper(
-            headless=SCRAPER_CONFIG.get('headless', False),
-            zip_code=SCRAPER_CONFIG.get('zip_code'),
-            timeout=SCRAPER_CONFIG.get('timeout', 30)
-        )
-        product_links = await scraper.scrape()
-
-        if product_links:
-            df = pd.DataFrame({'product_link': product_links})
-            output_file = SCRAPER_CONFIG.get('output_file', 'marianos_product.csv')
-            df.to_csv(output_file, index=False)
-            logger.info(f"Saved {len(product_links)} product links to {output_file}")
-        else:
-            logger.warning("No product links were found")
-    
-    except Exception as e:
-        logger.error(f"Unexpected error in main execution: {e}")
+    scraper = MarianosScraper(
+        headless=SCRAPER_CONFIG.get('headless', False),
+        zip_code=SCRAPER_CONFIG.get('zip_code'),
+        timeout=SCRAPER_CONFIG.get('timeout', 30)
+    )
+    product_details = await scraper.scrape()
+    if product_details:
+        logger.info(f"Scraped {len(product_details)} products successfully")
+    else:
+        logger.warning("No products were scraped")
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
